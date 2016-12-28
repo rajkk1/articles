@@ -161,3 +161,62 @@ data.frame(year = years, mean = sapply(polls, calcPollsMean),
    MSE = sapply(polls, calcPollsMSE),
    MSE_swing = sapply(polls, calcPollsSwingMSE))
 
+################################################################################
+
+### To answer Follow up questions:
+
+#1. How does the plot look like if plotted in order of bias
+
+## Calculate mean of error in states in polls per state
+calcPollsMeanState <- function(polls){
+    polls <- polls[complete.cases(polls),]
+    pollsMean <- aggregate(polls$diff_pred, list(polls$state), mean)
+    names(pollsMean) <- c("state","diff_pred")
+    return(pollsMean)
+}
+
+
+pollsMean <- list()
+pollsOrdered <- list()
+for (year in years){
+    ## Make list of means and order by mean
+    pollsMean[[year]] <- calcPollsMeanState(polls[[year]])
+    pollsMean[[year]] <- pollsMean[[year]][order(pollsMean[[year]]$diff_pred),]
+    pollsMean[[year]]$state <- as.factor(pollsMean[[year]]$state)
+    ## Order poll results by mean
+    pollsOrdered[[year]] <- polls[[year]][complete.cases(polls[[year]]),]
+    pollsOrdered[[year]]$state <- factor(pollsOrdered[[year]]$state,levels = pollsMean[[year]]$state)
+}
+### Plot:
+grid.arrange(plotPoll(pollsOrdered[['2008']]) +guides(color=FALSE),
+             plotPoll(pollsOrdered[['2012']]) + guides(color=FALSE),
+             plotPoll(pollsOrdered[['2016']]) + guides(color=FALSE),
+             ncol=3)
+
+#2. What are the national averages
+
+### Check the national average in 2008 polls
+##Number of total votes from http://www.electproject.org/2008g
+stateVotes2008 <- read.xlsx("num_votes_2008.xlsx", sheetIndex=1)
+#stateVotes2008 <- read.xlsx("state_pop_2010.xlsx", sheetIndex=1) #-can also use this as an alternative
+# which just looks at total population from https://en.wikipedia.org/wiki/List_of_U.S._states_by_historical_population
+totalVotes <- sum(stateVotes2008$num_votes)
+
+## Calculate mean of democratic and republican vote percentage in states in polls per state
+calcPollsMeanStateParty <- function(polls){
+    polls <- polls[complete.cases(polls),]
+    pollsMean <- aggregate(cbind(dem_perc/100, rep_perc/100)~state, data=polls, mean, na.rm=TRUE)
+    #names(pollsMean) <- c("state","diff_pred")
+    return(pollsMean)
+}
+
+### Get total number of votes for each party in 2008
+pollsMeanParty2008 <- calcPollsMeanStateParty(polls[['2008']])
+pollsMeanParty2008 <- merge(pollsMeanParty2008,stateVotes2008, by="state")
+pollsMeanParty2008$dem_tot <- pollsMeanParty2008$V1*pollsMeanParty2008$num_votes
+pollsMeanParty2008$rep_tot <- pollsMeanParty2008$V2*pollsMeanParty2008$num_votes
+
+### Percentage of votes for each party
+sum(pollsMeanParty2008$rep_tot)/totalVotes
+sum(pollsMeanParty2008$dem_tot)/totalVotes
+
